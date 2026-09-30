@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -654,7 +655,13 @@ func TestCurlKilledAfterConnectIsNotATimeout(t *testing.T) {
 	} {
 		dir := t.TempDir()
 		path, said := filepath.Join(dir, "curl"), filepath.Join(dir, "said")
-		script := "#!/bin/sh\ncat >/dev/null\necho '" + line + "' >&2\n: >'" + said + "'\nexec sleep 30\n"
+		script := fmt.Sprintf(`#!/bin/sh
+cat >/dev/null
+echo '%s' >&2
+# The line is out: the test can kill curl now.
+: >'%s'
+exec sleep 30
+`, line, said)
 		if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 			t.Fatal(err)
 		}
