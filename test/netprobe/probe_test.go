@@ -671,9 +671,14 @@ exec sleep 30
 		p.lookPath = func(string) (string, error) { return path, nil }
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
+		// saw closes before the cancel, so once dohCurl returns it tells a
+		// kill by this test from the deadline. The "Trying" case ends in
+		// timedOut either way and would pass on the deadline alone.
+		saw := make(chan struct{})
 		go func() {
 			for {
 				if _, err := os.Stat(said); err == nil {
+					close(saw)
 					cancel()
 					return
 				}
@@ -687,6 +692,11 @@ exec sleep 30
 		r := p.dohCurl(ctx, "https://doh.example/dns-query", "example.com")
 		close(done)
 		cancel()
+		select {
+		case <-saw:
+		default:
+			t.Errorf("%q: the stand-in never wrote its marker, so the deadline ended curl, not this test (%s)", line, r.detail)
+		}
 		if r.outcome != want {
 			t.Errorf("%q: outcome = %q (%s), want %q", line, r.outcome, r.detail, want)
 		}
